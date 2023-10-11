@@ -1,70 +1,123 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
-#define MAX_SIZE 100
+typedef struct Process
+{
+    int pid;
+    char* name;
+    char* state;
+    int wait;
+    int execution_time;
+} Process;
 
-typedef struct {
-    int arr[MAX_SIZE_QUEUE];
-    int front;
-    int rear;
+typedef struct Node
+{
+    Process data;
+    struct Node* next;
+} Node;
+
+typedef struct Queue
+{
+    Node* front;
+    Node* rear;
+    int size;
 } Queue;
 
-void initializeQueue(Queue* q) {
-    q->front = -1;
-    q->rear = -1;
+void initializeQueue(Queue* queue) {
+    queue->front = queue->rear = NULL;
+    queue->size = 0;
 }
 
-int isFull(Queue* q) {
-    return (q->rear == MAX_SIZE - 1);
+bool isQueueEmpty(Queue* queue) {
+    return (queue->front == NULL);
 }
 
-int isEmpty(Queue* q) {
-    return (q->front == -1);
+Node* createNode(Process data) {
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    if (!newNode) {
+        perror("Memory allocation error");
+        exit(EXIT_FAILURE);
+    }
+    newNode->data = data;
+    newNode->next = NULL;
+    return newNode;
 }
 
-void enqueue(Queue* q, int value) {
-    if (isFull(q)) {
-        printf("Queue is full. Cannot enqueue.\n");
+void enqueue(Queue* queue, Process data) {
+    Node* newNode = createNode(data);
+
+    if (isQueueEmpty(queue)) {
+        queue->front = queue->rear = newNode;
+    } else {
+        queue->rear->next = newNode;
+        queue->rear = newNode;
+    }
+
+    queue->size++;
+}
+
+void dequeue(Queue* queue) {
+    if (isQueueEmpty(queue)) {
+        printf("Queue is empty, cannot dequeue.\n");
         return;
     }
 
-    if (isEmpty(q)) {
-        q->front = 0;
+    Node* temp = queue->front;
+
+    if (queue->front == queue->rear) {
+        queue->front = queue->rear = NULL;
+    } else {
+        queue->front = queue->front->next;
     }
 
-    q->rear++;
-    q->arr[q->rear] = value;
+    free(temp);
+    queue->size--;
 }
 
-int dequeue(Queue* q) {
-    if (isEmpty(q)) {
-        printf("Queue is empty. Cannot dequeue.\n");
-        return -1; // Return a sentinel value indicating error
+Process front(Queue* queue) {
+    if (isQueueEmpty(queue)) {
+        printf("Queue is empty, cannot get front element.\n");
+        exit(EXIT_FAILURE);
     }
+    return queue->front->data;
+}
 
-    int value = q->arr[q->front];
+int getSize(Queue* queue) {
+    return queue->size;
+}
 
-    if (q->front == q->rear) {
-        q->front = q->rear = -1; // Reset queue when last element is dequeued
-    } else {
-        q->front++;
+void freeQueue(Queue* queue) {
+    while (!isQueueEmpty(queue)) {
+        dequeue(queue);
     }
-
-    return value;
 }
 
 int main() {
-    Queue myQueue;
-    initializeQueue(&myQueue);
+    Queue processQueue;
+    initializeQueue(&processQueue);
 
-    enqueue(&myQueue, 10);
-    enqueue(&myQueue, 20);
-    enqueue(&myQueue, 30);
+    Process p1 = { 1, "Process 1", "Running", 10, 5 };
+    Process p2 = { 2, "Process 2", "Ready", 5, 3 };
+    Process p3 = { 3, "Process 3", "Waiting", 8, 7 };
 
-    printf("Dequeued element: %d\n", dequeue(&myQueue));
-    printf("Dequeued element: %d\n", dequeue(&myQueue));
-    printf("Dequeued element: %d\n", dequeue(&myQueue));
-    printf("Dequeued element: %d\n", dequeue(&myQueue)); // Trying to dequeue from an empty queue
+    enqueue(&processQueue, p1);
+    enqueue(&processQueue, p2);
+    enqueue(&processQueue, p3);
+
+    Process frontProcess = front(&processQueue);
+    printf("Front process: PID %d, Name: %s\n", frontProcess.pid, frontProcess.name);
+
+    printf("Queue size: %d\n", getSize(&processQueue));
+
+    dequeue(&processQueue);
+
+    frontProcess = front(&processQueue);
+    printf("Front process after dequeue: PID %d, Name: %s\n", frontProcess.pid, frontProcess.name);
+
+    printf("Queue size after dequeue: %d\n", getSize(&processQueue));
+
+    freeQueue(&processQueue);
 
     return 0;
 }
