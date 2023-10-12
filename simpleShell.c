@@ -6,6 +6,10 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <fcntl.h> 
+#define true 1
+#define false 0
+
+typedef int bool; 
 
 // -------defining all varibles used 
 #define MAX_INPUT_SIZE 1024
@@ -15,6 +19,103 @@
 
 // -----------global varible for checking background process
 int back_ground_check=0;
+
+
+// -------------------------making queue
+
+
+typedef struct Process
+{
+    int pid;
+    char* name;
+    char* state;
+    int wait;
+    int execution_time;
+} Process;
+
+typedef struct Node
+{
+    Process data;
+    struct Node* next;
+} Node;
+
+typedef struct Queue
+{
+    Node* front;
+    Node* rear;
+    int size;
+} Queue;
+
+void initializeQueue(Queue* queue) {
+    queue->front = queue->rear = NULL;
+    queue->size = 0;
+}
+
+bool isQueueEmpty(Queue* queue) {
+    return (queue->front == NULL);
+}
+
+Node* createNode(Process data) {
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    if (!newNode) {
+        perror("Memory allocation error");
+        exit(EXIT_FAILURE);
+    }
+    newNode->data = data;
+    newNode->next = NULL;
+    return newNode;
+}
+
+void enqueue(Queue* queue, Process data) {
+    Node* newNode = createNode(data);
+
+    if (isQueueEmpty(queue)) {
+        queue->front = queue->rear = newNode;
+    } else {
+        queue->rear->next = newNode;
+        queue->rear = newNode;
+    }
+
+    queue->size++;
+}
+
+void dequeue(Queue* queue) {
+    if (isQueueEmpty(queue)) {
+        printf("Queue is empty, cannot dequeue.\n");
+        return;
+    }
+
+    Node* temp = queue->front;
+
+    if (queue->front == queue->rear) {
+        queue->front = queue->rear = NULL;
+    } else {
+        queue->front = queue->front->next;
+    }
+
+    free(temp);
+    queue->size--;
+}
+
+Process front(Queue* queue) {
+    if (isQueueEmpty(queue)) {
+        printf("Queue is empty, cannot get front element.\n");
+        exit(EXIT_FAILURE);
+    }
+    return queue->front->data;
+}
+
+int getSize(Queue* queue) {
+    return queue->size;
+}
+
+void freeQueue(Queue* queue) {
+    while (!isQueueEmpty(queue)) {
+        dequeue(queue);
+    }
+}
+
+Queue q;
 
 typedef struct ChildProcessInfo
 {
@@ -416,6 +517,32 @@ int read_sh(char* cmd)
 }
 
 
+int submit(char* cmd)
+{
+    Process* p = (Process*) malloc(sizeof(Process));
+    p->name = cmd;
+    int check=fork();
+    if(check < 0)
+    {
+        printf("Error in fork for submit");
+    }
+    else if(check == 0)
+    {
+        // --child process
+        p->pid = getpid();
+        // printf("ppid %d\n",getppid());
+        // printf("GETPID %d\n",getpid());
+        p->state="Ready";
+        p->execution_time=0;
+        p->wait=0;
+        execl(cmd,cmd,NULL);
+    }
+    else
+    {
+        
+    }
+}
+
 
 
 void shell_loop()
@@ -515,6 +642,11 @@ void shell_loop()
             {
                 // status=read_sh(args[1]);
 
+                status = submit(args[1]);
+
+                //  add your add here
+
+
             }
             else
             {
@@ -540,6 +672,10 @@ int main()
     memset(&sig, 0, sizeof(sig));
     sig.sa_handler = my_handler;
     sigaction(SIGINT, &sig, NULL);
+
+    initializeQueue(&q);
+
+
     int shedular = fork();
     if(shedular < 0)
     {
