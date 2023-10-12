@@ -1,15 +1,36 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
+#include <string.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <sys/time.h>
+#include <fcntl.h> 
+#include <sys/shm.h>
+#include<sys/mman.h>
+#include<stdbool.h>
+#include<semaphore.h>
 
 typedef struct Process
 {
     int pid;
-    char* name;
-    char* state;
+    char name[100];
+    char state[100];
     int wait;
     int execution_time;
 } Process;
+
+// ------shared memory
+int SIZE = 4096;
+char* name = "shell to scheduler";
+int shm_fd;
+sem_t* sema;
+
+// typedef struct shared
+// {
+//     Process* p;
+// }shared;
+Process* ptr;
 
 typedef struct Node
 {
@@ -94,10 +115,36 @@ void freeQueue(Queue* queue) {
 }
 
 int main() {
-    while (1)
-    {
-        /* code */
-    }
+    printf("hi");
+    fflush(stdout);
+    Queue q;
+    initializeQueue(&q);
+    // sleep(10);
+    sema = sem_open("a", O_CREAT, 0666,0);
+    sem_wait(sema);
+    printf("hi2\n");
+    shm_fd = shm_open(name, O_RDONLY, 0666);
+    ptr = (Process*)mmap(0, SIZE, PROT_READ, MAP_SHARED, shm_fd, 0);
+    if (ptr == MAP_FAILED) {
+    perror("mmap");
+    exit(EXIT_FAILURE);
+}
+    printf("ptr schedular %p\n",ptr);
+    // printf("ptr->p schedular %p\n",ptr->p);
+    printf("%p \n",(void *)ptr->name);
+    fflush(stdout);
+    // char* s=strcpy(s, ptr->state);
+    printf("%s \n",ptr->name);
+    fflush(stdout);
+    // char *a=ptr->p->name;
+    // puts(a);
+    
+    // while (1)
+    // {
+    //     /* code */
+
+
+    // }
     
 
     return 0;

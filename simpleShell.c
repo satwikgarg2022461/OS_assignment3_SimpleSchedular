@@ -6,10 +6,10 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <fcntl.h> 
-#define true 1
-#define false 0
-
-typedef int bool; 
+#include <sys/shm.h>
+#include<sys/mman.h>
+#include<semaphore.h>
+#include<stdbool.h>
 
 // -------defining all varibles used 
 #define MAX_INPUT_SIZE 1024
@@ -21,101 +21,30 @@ typedef int bool;
 int back_ground_check=0;
 
 
-// -------------------------making queue
 
 
+// ------shared memory
 typedef struct Process
 {
     int pid;
-    char* name;
-    char* state;
+    char name[MAX_HISTORY_SIZE];
+    char state[MAX_HISTORY_SIZE];
     int wait;
     int execution_time;
 } Process;
 
-typedef struct Node
-{
-    Process data;
-    struct Node* next;
-} Node;
 
-typedef struct Queue
-{
-    Node* front;
-    Node* rear;
-    int size;
-} Queue;
+int SIZE = 4096;
+char* name = "shell to scheduler";
+int shm_fd;
+sem_t* sema;
 
-void initializeQueue(Queue* queue) {
-    queue->front = queue->rear = NULL;
-    queue->size = 0;
-}
-
-bool isQueueEmpty(Queue* queue) {
-    return (queue->front == NULL);
-}
-
-Node* createNode(Process data) {
-    Node* newNode = (Node*)malloc(sizeof(Node));
-    if (!newNode) {
-        perror("Memory allocation error");
-        exit(EXIT_FAILURE);
-    }
-    newNode->data = data;
-    newNode->next = NULL;
-    return newNode;
-}
-
-void enqueue(Queue* queue, Process data) {
-    Node* newNode = createNode(data);
-
-    if (isQueueEmpty(queue)) {
-        queue->front = queue->rear = newNode;
-    } else {
-        queue->rear->next = newNode;
-        queue->rear = newNode;
-    }
-
-    queue->size++;
-}
-
-void dequeue(Queue* queue) {
-    if (isQueueEmpty(queue)) {
-        printf("Queue is empty, cannot dequeue.\n");
-        return;
-    }
-
-    Node* temp = queue->front;
-
-    if (queue->front == queue->rear) {
-        queue->front = queue->rear = NULL;
-    } else {
-        queue->front = queue->front->next;
-    }
-
-    free(temp);
-    queue->size--;
-}
-
-Process front(Queue* queue) {
-    if (isQueueEmpty(queue)) {
-        printf("Queue is empty, cannot get front element.\n");
-        exit(EXIT_FAILURE);
-    }
-    return queue->front->data;
-}
-
-int getSize(Queue* queue) {
-    return queue->size;
-}
-
-void freeQueue(Queue* queue) {
-    while (!isQueueEmpty(queue)) {
-        dequeue(queue);
-    }
-}
-
-Queue q;
+// typedef struct shared
+// {
+//     Process* p;
+//     sem_t sema;
+// }shared;
+Process* ptr;
 
 typedef struct ChildProcessInfo
 {
@@ -520,7 +449,8 @@ int read_sh(char* cmd)
 int submit(char* cmd)
 {
     Process* p = (Process*) malloc(sizeof(Process));
-    p->name = cmd;
+    // ptr->name = cmd;
+    strcpy(ptr->name,cmd);
     int check=fork();
     if(check < 0)
     {
@@ -529,16 +459,32 @@ int submit(char* cmd)
     else if(check == 0)
     {
         // --child process
-        p->pid = getpid();
+        ptr->pid = getpid();
         // printf("ppid %d\n",getppid());
         // printf("GETPID %d\n",getpid());
-        p->state="Ready";
-        p->execution_time=0;
-        p->wait=0;
+        // ptr->state="Ready";
+        strcpy(ptr->state,"Ready");
+        ptr->execution_time=0;
+        ptr->wait=123;
+        
+        // ptr=p;
+        printf("ptr shell %p\n",ptr);
+        // printf("ptr->p shell %p\n",ptr->p);
+        printf("p shell %p\n",p);
+        printf("ptr name shell%p \n",(void *)ptr->name);
+        printf("shell name%s\n", ptr->name);
+        // printf("name %s\n",ptr->p->name);
+        // printf("%p \n",(void *)ptr->p->name);
+        sem_post(sema);
+        pause();
         execl(cmd,cmd,NULL);
     }
     else
     {
+        // sleep(1);
+        
+        
+        
         
     }
 }
@@ -673,7 +619,15 @@ int main()
     sig.sa_handler = my_handler;
     sigaction(SIGINT, &sig, NULL);
 
-    initializeQueue(&q);
+    // initializeQueue(&q);
+
+    // ---creating shared memory
+    shm_fd = shm_open(name, O_CREAT | O_RDWR, 0666);
+    ftruncate(shm_fd, SIZE);
+    ptr = (Process*)mmap(0, SIZE, PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    // ptr->
+    printf("shell main ptr%p\n",ptr);
+    sema = sem_open("a", O_CREAT, 0666,0);
 
 
     int shedular = fork();
@@ -684,15 +638,13 @@ int main()
     }
     else if(shedular == 0)
     {
-        int check=execlp("./simpleSchedular","simpleSchedular", NULL);
-        if(check == -1)
-        {
-            printf("error in running simple schedular");
-            exit(1);
-        }
+        printf("check\n");
+        
+        execl("./simpleSchedular","./simpleSchedular", NULL);
+        
     }
-    else{
-        shell_loop();
-    }
+    
+    shell_loop();
+    
     return 0;
 }

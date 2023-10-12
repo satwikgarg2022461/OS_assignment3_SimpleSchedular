@@ -12,21 +12,21 @@ int fib(int n) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        printf("Usage: %s <number>\n", argv[0]);
-        return 1;
-    }
+    // if (argc != 2) {
+    //     printf("Usage: %s <number>\n", argv[0]);
+    //     return 1;
+    // }
 
-    int input = atoi(argv[1]);
+    // int input = atoi(argv[1]);
 
-    // printf("%d\n", input);
+    // // printf("%d\n", input);
 
-    if (input < 0) {
-        printf("Input must be a non-negative integer.\n");
-        return 1;
-    }
+    // if (input < 0) {
+    //     printf("Input must be a non-negative integer.\n");
+    //     return 1;
+    // }
 
-    printf("%d\n", fib(input));
+    printf("%d\n", fib(40));
 
     return 0;
 }
