@@ -44,7 +44,113 @@ sem_t* sema;
 //     Process* p;
 //     sem_t sema;
 // }shared;
-Process* ptr;
+// Process* ptr;
+
+
+// -------queue
+
+// Define a node for the queue
+typedef struct Node
+{
+    Process* data;
+    struct Node* next;
+} Node;
+
+typedef struct Queue
+{
+    Node* front;
+    Node* rear;
+    int size;
+} Queue;
+
+void initializeQueue(Queue* queue) {
+    queue->front = queue->rear = NULL;
+    queue->size = 0;
+}
+
+bool isQueueEmpty(Queue* queue) {
+    return (queue->front == NULL);
+}
+
+Node* createNode(Process* data) {
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    if (!newNode) {
+        perror("Memory allocation error");
+        exit(EXIT_FAILURE);
+    }
+    newNode->data = data;
+    newNode->next = NULL;
+    return newNode;
+}
+
+void enqueue(Queue* queue, Process* data) {
+    Node* newNode = createNode(data);
+
+    if (isQueueEmpty(queue)) {
+        queue->front = queue->rear = newNode;
+    } else {
+        queue->rear->next = newNode;
+        queue->rear = newNode;
+    }
+
+    queue->size++;
+}
+
+void dequeue(Queue* queue) {
+    if (isQueueEmpty(queue)) {
+        printf("Queue is empty, cannot dequeue.\n");
+        return;
+    }
+
+    Node* temp = queue->front;
+
+    if (queue->front == queue->rear) {
+        queue->front = queue->rear = NULL;
+    } else {
+        queue->front = queue->front->next;
+    }
+
+    free(temp);
+    queue->size--;
+}
+
+Process* front(Queue* queue) {
+    if (isQueueEmpty(queue)) {
+        printf("Queue is empty, cannot get front element.\n");
+        exit(EXIT_FAILURE);
+    }
+    return queue->front->data;
+}
+
+int getSize(Queue* queue) {
+    return queue->size;
+}
+
+void freeQueue(Queue* queue) {
+    while (!isQueueEmpty(queue)) {
+        dequeue(queue);
+    }
+}
+
+void printQueue(Queue* queue) {
+    Node* current = queue->front;
+
+    if (isQueueEmpty(queue)) {
+        printf("Queue is empty.\n");
+        return;
+    }
+
+    printf("Queue Contents:\n");
+    while (current != NULL) {
+        printf("PID: %d, Name: %s, State: %s, Wait: %d, Execution Time: %d\n",
+               current->data->pid, current->data->name, current->data->state,
+               current->data->wait, current->data->execution_time);
+        current = current->next;
+    }
+}
+
+Queue* q;
+
 
 typedef struct ChildProcessInfo
 {
@@ -448,7 +554,7 @@ int read_sh(char* cmd)
 
 int submit(char* cmd)
 {
-    Process* p = (Process*) malloc(sizeof(Process));
+    Process* ptr = (Process*) malloc(sizeof(Process));
     // ptr->name = cmd;
     strcpy(ptr->name,cmd);
     int check=fork();
@@ -459,29 +565,40 @@ int submit(char* cmd)
     else if(check == 0)
     {
         // --child process
-        ptr->pid = getpid();
-        // printf("ppid %d\n",getppid());
-        // printf("GETPID %d\n",getpid());
-        // ptr->state="Ready";
-        strcpy(ptr->state,"Ready");
-        ptr->execution_time=0;
-        ptr->wait=123;
         
-        // ptr=p;
-        printf("ptr shell %p\n",ptr);
-        // printf("ptr->p shell %p\n",ptr->p);
-        printf("p shell %p\n",p);
-        printf("ptr name shell%p \n",(void *)ptr->name);
-        printf("shell name%s\n", ptr->name);
+        
+        // // printf("ptr->p shell %p\n",ptr->p);
+        // printf("p shell %p\n",p);
+        // printf("ptr name shell%p \n",(void *)ptr->name);
+        // printf("shell name%s\n", ptr->name);
         // printf("name %s\n",ptr->p->name);
         // printf("%p \n",(void *)ptr->p->name);
-        sem_post(sema);
+        
         pause();
         execl(cmd,cmd,NULL);
     }
     else
     {
         // sleep(1);
+        ptr->pid = check;
+        
+        strcpy(ptr->state,"Ready");
+        ptr->execution_time=0;
+        ptr->wait=123;
+        // printf("ppid %d\n",getppid());
+        // printf("GETPID %d\n",getpid());
+        // ptr->state="Ready";
+        // ptr=p;
+        // printf("%s\n",ptr->state);
+        // printf("%s\n",ptr->name);
+        // printf("ptr shell %p\n",ptr);
+        enqueue(q,ptr);
+        
+        printQueue(q);
+        sem_post(sema);
+        printf("sbjcscjlhaslijasijvsavnnmv\n");
+        sleep(1);
+        
         
         
         
@@ -618,15 +735,17 @@ int main()
     memset(&sig, 0, sizeof(sig));
     sig.sa_handler = my_handler;
     sigaction(SIGINT, &sig, NULL);
-
-    // initializeQueue(&q);
+    
+    // initializeQueue(q);
+    
 
     // ---creating shared memory
     shm_fd = shm_open(name, O_CREAT | O_RDWR, 0666);
-    ftruncate(shm_fd, SIZE);
-    ptr = (Process*)mmap(0, SIZE, PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    // ptr->
-    printf("shell main ptr%p\n",ptr);
+    ftruncate(shm_fd, sizeof(Queue));
+    q = (Queue*)mmap(0, sizeof(Queue), PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    initializeQueue(q);
+    printf("%d\n",getSize(q));
+    // q=(Queue*) malloc(sizeof(Queue));
     sema = sem_open("a", O_CREAT, 0666,0);
 
 

@@ -26,15 +26,9 @@ char* name = "shell to scheduler";
 int shm_fd;
 sem_t* sema;
 
-// typedef struct shared
-// {
-//     Process* p;
-// }shared;
-Process* ptr;
-
 typedef struct Node
 {
-    Process data;
+    Process* data;
     struct Node* next;
 } Node;
 
@@ -54,7 +48,7 @@ bool isQueueEmpty(Queue* queue) {
     return (queue->front == NULL);
 }
 
-Node* createNode(Process data) {
+Node* createNode(Process* data) {
     Node* newNode = (Node*)malloc(sizeof(Node));
     if (!newNode) {
         perror("Memory allocation error");
@@ -65,7 +59,7 @@ Node* createNode(Process data) {
     return newNode;
 }
 
-void enqueue(Queue* queue, Process data) {
+void enqueue(Queue* queue, Process* data) {
     Node* newNode = createNode(data);
 
     if (isQueueEmpty(queue)) {
@@ -96,7 +90,7 @@ void dequeue(Queue* queue) {
     queue->size--;
 }
 
-Process front(Queue* queue) {
+Process* front(Queue* queue) {
     if (isQueueEmpty(queue)) {
         printf("Queue is empty, cannot get front element.\n");
         exit(EXIT_FAILURE);
@@ -114,28 +108,52 @@ void freeQueue(Queue* queue) {
     }
 }
 
+void printQueue(Queue* queue) {
+    Node* current = queue->front;
+
+    if (isQueueEmpty(queue)) {
+        printf("Queue is empty.\n");
+        return;
+    }
+
+    printf("Queue Contents:\n");
+    while (current != NULL) {
+        printf("PID: %d, Name: %s, State: %s, Wait: %d, Execution Time: %d\n",
+               current->data->pid, current->data->name, current->data->state,
+               current->data->wait, current->data->execution_time);
+        current = current->next;
+    }
+}
+Queue* q;
+
 int main() {
     printf("hi");
     fflush(stdout);
-    Queue q;
-    initializeQueue(&q);
+    q=(Queue*) malloc(sizeof(Queue));
+    
+    Process* ptr=(Process*)malloc(sizeof(Process));
     // sleep(10);
     sema = sem_open("a", O_CREAT, 0666,0);
     sem_wait(sema);
     printf("hi2\n");
-    shm_fd = shm_open(name, O_RDONLY, 0666);
-    ptr = (Process*)mmap(0, SIZE, PROT_READ, MAP_SHARED, shm_fd, 0);
-    if (ptr == MAP_FAILED) {
-    perror("mmap");
-    exit(EXIT_FAILURE);
-}
-    printf("ptr schedular %p\n",ptr);
-    // printf("ptr->p schedular %p\n",ptr->p);
-    printf("%p \n",(void *)ptr->name);
     fflush(stdout);
-    // char* s=strcpy(s, ptr->state);
-    printf("%s \n",ptr->name);
+    shm_fd = shm_open(name, O_RDWR, 0666);
+    q = (Queue*)mmap(0, sizeof(Queue), PROT_READ|PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    // printf("amdhjksahdjksa");
+    printf("sizejadfjkafjkahsjkf %d\n",getSize(q));
     fflush(stdout);
+    
+    // printf("size %d\n",getSize(q));
+    // fflush(stdout);
+    printQueue(q);
+    fflush(stdout);
+    // printf("ptr schedular %p\n",ptr);
+    // // printf("ptr->p schedular %p\n",ptr->p);
+    // printf("%p \n",(void *)ptr->name);
+    // fflush(stdout);
+    // // char* s=strcpy(s, ptr->state);
+    // printf("%s \n",ptr->name);
+    // fflush(stdout);
     // char *a=ptr->p->name;
     // puts(a);
     
