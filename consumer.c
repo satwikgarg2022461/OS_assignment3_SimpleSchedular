@@ -1,17 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <unistd.h>
-#include <signal.h>
-#include <sys/wait.h>
-#include <sys/time.h>
-#include <fcntl.h> 
-#include <sys/shm.h>
-#include<sys/mman.h>
-#include<stdbool.h>
-#include<semaphore.h>
+#include <string.h>
 
-#define SHM_NAME "a"
+#define SHM_NAME "/my_shared_memory"
 #define SHM_SIZE 1024  // Adjust this as needed
 
 typedef struct Process
@@ -28,13 +22,14 @@ typedef struct Queue
     int front, rear, size;
     unsigned capacity;
     Process array[0]; // Flexible array member
-    sem_t sem,sem2;
 } Queue;
 
-void initQueue(Queue* q, unsigned capacity) {
-    q->capacity = capacity;
-    q->front = q->rear = -1;
-    q->size = 0;
+Queue* initQueue(unsigned capacity) {
+    Queue* queue = malloc(sizeof(Queue) + sizeof(Process) * capacity);
+    queue->capacity = capacity;
+    queue->front = queue->rear = -1;
+    queue->size = 0;
+    return queue;
 }
 
 int isFull(Queue* queue) {
@@ -45,7 +40,7 @@ int isEmpty(Queue* queue) {
     return queue->size == 0;
 }
 
-void enqueue(Queue* queue, Process* data) {
+void enqueue(Queue* queue, Process data) {
     if (isFull(queue)) {
         printf("Queue is full. Cannot enqueue.\n");
         return;
@@ -56,7 +51,7 @@ void enqueue(Queue* queue, Process* data) {
     else
         queue->rear = (queue->rear + 1) % queue->capacity;
 
-    queue->array[queue->rear] = *data; // Copy the Process data into the queue
+    queue->array[queue->rear] = data;
     queue->size++;
 }
 
@@ -74,33 +69,19 @@ Process dequeue(Queue* queue) {
     queue->size--;
     return data;
 }
-sem_t* sema;
+
 int main() {
-    printf("hi\n");
     int shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
     Queue* shared_memory = (Queue*)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    while (1)
-    {
-        while (shared_memory->size>0) {
-        sem_wait(&shared_memory->sem);
-        printf("shared mem size schedular %d\n",shared_memory->size);
-        sem_wait(&shared_memory->sem);
+
+    while (!isEmpty(shared_memory)) {
         Process p = dequeue(shared_memory);
-        sem_wait(&shared_memory->sem);
+        printf("Process ID: %d\n", p.pid);
         printf("Name: %s\n", p.name);
         printf("State: %s\n", p.state);
         printf("Wait Time: %d\n", p.wait);
         printf("Execution Time: %d\n\n", p.execution_time);
-        printf("Process ID: %d\n", p.pid);
-        // fflush(stdout);
-        sem_wait(&shared_memory->sem);
-        }
-        // sem_wait(&shared_memory->sem);
     }
-
-    sem_destroy(&shared_memory->sem);
-    
-    
 
     close(shm_fd);
 

@@ -6,150 +6,93 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <fcntl.h> 
-#include <sys/shm.h>
-#include<sys/mman.h>
+#include <sys/mman.h>
 #include<semaphore.h>
-#include<stdbool.h>
 
 // -------defining all varibles used 
 #define MAX_INPUT_SIZE 1024
 #define MAX_HISTORY_SIZE 100
 #define MAX_PROCESSES 100
 #define MAX_DIRECTORY_SIZE 1024
+#define SHM_NAME "a"
+#define SHM_SIZE 1024
+
+
 
 // -----------global varible for checking background process
 int back_ground_check=0;
 
 
 
+// ----------------------------queue
 
-// ------shared memory
 typedef struct Process
 {
     int pid;
-    char name[MAX_HISTORY_SIZE];
-    char state[MAX_HISTORY_SIZE];
+    char name[100];
+    char state[100];
     int wait;
     int execution_time;
 } Process;
 
-
-int SIZE = 4096;
-char* name = "shell to scheduler";
-int shm_fd;
-sem_t* sema;
-
-// typedef struct shared
-// {
-//     Process* p;
-//     sem_t sema;
-// }shared;
-// Process* ptr;
-
-
-// -------queue
-
-// Define a node for the queue
-typedef struct Node
-{
-    Process* data;
-    struct Node* next;
-} Node;
-
 typedef struct Queue
 {
-    Node* front;
-    Node* rear;
-    int size;
+    int front, rear, size;
+    unsigned capacity;
+    Process array[0]; // Flexible array member
+    sem_t sem,sem2;
 } Queue;
 
-void initializeQueue(Queue* queue) {
-    queue->front = queue->rear = NULL;
-    queue->size = 0;
+void initQueue(Queue* q, unsigned capacity) {
+    q->capacity = capacity;
+    q->front = q->rear = -1;
+    q->size = 0;
 }
 
-bool isQueueEmpty(Queue* queue) {
-    return (queue->front == NULL);
+int isFull(Queue* queue) {
+    return queue->size == queue->capacity;
 }
 
-Node* createNode(Process* data) {
-    Node* newNode = (Node*)malloc(sizeof(Node));
-    if (!newNode) {
-        perror("Memory allocation error");
-        exit(EXIT_FAILURE);
-    }
-    newNode->data = data;
-    newNode->next = NULL;
-    return newNode;
+int isEmpty(Queue* queue) {
+    return queue->size == 0;
 }
 
 void enqueue(Queue* queue, Process* data) {
-    Node* newNode = createNode(data);
-
-    if (isQueueEmpty(queue)) {
-        queue->front = queue->rear = newNode;
-    } else {
-        queue->rear->next = newNode;
-        queue->rear = newNode;
+    if (isFull(queue)) {
+        printf("Queue is full. Cannot enqueue.\n");
+        return;
     }
 
+    if (queue->rear == -1)
+        queue->front = queue->rear = 0;
+    else
+        queue->rear = (queue->rear + 1) % queue->capacity;
+
+    queue->array[queue->rear] = *data; // Copy the Process data into the queue
     queue->size++;
 }
 
-void dequeue(Queue* queue) {
-    if (isQueueEmpty(queue)) {
-        printf("Queue is empty, cannot dequeue.\n");
-        return;
-    }
+Process dequeue(Queue* queue) {
+    Process empty = {0, "", "", 0, 0}; // You might want to define a specific "empty" state.
+    if (isEmpty(queue))
+        return empty;
 
-    Node* temp = queue->front;
+    Process data = queue->array[queue->front];
+    if (queue->front == queue->rear)
+        queue->front = queue->rear = -1;
+    else
+        queue->front = (queue->front + 1) % queue->capacity;
 
-    if (queue->front == queue->rear) {
-        queue->front = queue->rear = NULL;
-    } else {
-        queue->front = queue->front->next;
-    }
-
-    free(temp);
     queue->size--;
+    return data;
 }
 
-Process* front(Queue* queue) {
-    if (isQueueEmpty(queue)) {
-        printf("Queue is empty, cannot get front element.\n");
-        exit(EXIT_FAILURE);
-    }
-    return queue->front->data;
-}
-
-int getSize(Queue* queue) {
-    return queue->size;
-}
-
-void freeQueue(Queue* queue) {
-    while (!isQueueEmpty(queue)) {
-        dequeue(queue);
-    }
-}
-
-void printQueue(Queue* queue) {
-    Node* current = queue->front;
-
-    if (isQueueEmpty(queue)) {
-        printf("Queue is empty.\n");
-        return;
-    }
-
-    printf("Queue Contents:\n");
-    while (current != NULL) {
-        printf("PID: %d, Name: %s, State: %s, Wait: %d, Execution Time: %d\n",
-               current->data->pid, current->data->name, current->data->state,
-               current->data->wait, current->data->execution_time);
-        current = current->next;
-    }
-}
-
+// -------------------global variable
+int shm_fd;
+Queue* shared_memory;
 Queue* q;
+sem_t* sema;
+
 
 
 typedef struct ChildProcessInfo
@@ -237,6 +180,8 @@ void print_history()
 static void my_handler(int signum) {
     if(signum == SIGINT) {
         print_process_info();
+         close(shm_fd);
+         sem_destroy(&shared_memory->sem);
         exit(0);
     }
 }
@@ -280,7 +225,7 @@ char* read_user_input()
 
 int create_process_run(char *cmd)
 {
-
+    printf("hi from cretae\n");
     if (strcmp(cmd, "exit") == 0) 
     {
         print_process_info();
@@ -425,8 +370,6 @@ int create_process_run(char *cmd)
         struct timeval start_time;
         gettimeofday(&start_time, NULL);
 
-        
-
 
         // creating fork
         int pid = fork();
@@ -552,11 +495,12 @@ int read_sh(char* cmd)
 }
 
 
+
+
+// --------------------------------submit
 int submit(char* cmd)
 {
-    Process* ptr = (Process*) malloc(sizeof(Process));
-    // ptr->name = cmd;
-    strcpy(ptr->name,cmd);
+    
     int check=fork();
     if(check < 0)
     {
@@ -564,47 +508,31 @@ int submit(char* cmd)
     }
     else if(check == 0)
     {
-        // --child process
-        
-        
-        // // printf("ptr->p shell %p\n",ptr->p);
-        // printf("p shell %p\n",p);
-        // printf("ptr name shell%p \n",(void *)ptr->name);
-        // printf("shell name%s\n", ptr->name);
-        // printf("name %s\n",ptr->p->name);
-        // printf("%p \n",(void *)ptr->p->name);
-        
         pause();
         execl(cmd,cmd,NULL);
+        exit(0);
     }
-    else
-    {
-        // sleep(1);
+    
+        Process* ptr = (Process*) malloc(sizeof(Process));
+        strcpy(ptr->name,cmd);
+
         ptr->pid = check;
+        ptr->execution_time = 1;
+        ptr->wait = 123;
+        strcpy(ptr->state,"Running");
         
-        strcpy(ptr->state,"Ready");
-        ptr->execution_time=0;
-        ptr->wait=123;
-        // printf("ppid %d\n",getppid());
-        // printf("GETPID %d\n",getpid());
-        // ptr->state="Ready";
-        // ptr=p;
-        // printf("%s\n",ptr->state);
-        // printf("%s\n",ptr->name);
-        // printf("ptr shell %p\n",ptr);
-        enqueue(q,ptr);
+        sem_wait(&shared_memory->sem);
         
-        printQueue(q);
-        sem_post(sema);
-        printf("sbjcscjlhaslijasijvsavnnmv\n");
-        sleep(1);
-        
-        
-        
-        
-        
-    }
+        enqueue(shared_memory,ptr);
+        // sem_post(&shared_memory->sem);
+        sem_wait(&shared_memory->sem);
+        printf("shared memory checd");
+    
+    return 0;
 }
+
+
+
 
 
 
@@ -617,8 +545,6 @@ void shell_loop()
         cmd = read_user_input();
 
         addHistory(cmd);
-
-        
 
         if (strcmp(cmd,"history")==0)
         {
@@ -735,35 +661,35 @@ int main()
     memset(&sig, 0, sizeof(sig));
     sig.sa_handler = my_handler;
     sigaction(SIGINT, &sig, NULL);
+
+    int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    ftruncate(shm_fd, SHM_SIZE);
+    // q=(Queue*)malloc(sizeof(Queue));
+
+
+    // initQueue(q,(SHM_SIZE - sizeof(Queue)) / sizeof(Process));
+    shared_memory = (Queue*)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    // sem_init(&shared_memory->sem2,1,0);
+    sema = sem_open("b", O_CREAT, 0666,0);
+    initQueue(shared_memory,(SHM_SIZE - sizeof(Queue)) / sizeof(Process));
+    sem_init(&shared_memory->sem,1,1);
+    int value;
+    sem_getvalue(&shared_memory->sem,&value);
+    printf("wait  shell main %d\n",value);
     
-    // initializeQueue(q);
     
 
-    // ---creating shared memory
-    shm_fd = shm_open(name, O_CREAT | O_RDWR, 0666);
-    ftruncate(shm_fd, sizeof(Queue));
-    q = (Queue*)mmap(0, sizeof(Queue), PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    initializeQueue(q);
-    printf("%d\n",getSize(q));
-    // q=(Queue*) malloc(sizeof(Queue));
-    sema = sem_open("a", O_CREAT, 0666,0);
+    // shared_memory
 
-
-    int shedular = fork();
-    if(shedular < 0)
+    int schedular = fork();
+    if(schedular == 0)
     {
-        printf("Error in forking schedular");
-        exit(1);
+        execl("./simpleSchedular","simpleSchedular",NULL);
+        exit(0);
     }
-    else if(shedular == 0)
-    {
-        printf("check\n");
-        
-        execl("./simpleSchedular","./simpleSchedular", NULL);
-        
-    }
-    
     shell_loop();
-    
+
+
+
     return 0;
 }
