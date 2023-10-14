@@ -22,6 +22,9 @@
 // -----------global varible for checking background process
 int back_ground_check=0;
 
+//..........schedular
+int schedular;
+
 
 
 // ----------------------------queue
@@ -182,6 +185,7 @@ static void my_handler(int signum) {
         print_process_info();
          close(shm_fd);
          sem_destroy(&shared_memory->sem);
+         kill(schedular,SIGINT);
         exit(0);
     }
 }
@@ -225,7 +229,7 @@ char* read_user_input()
 
 int create_process_run(char *cmd)
 {
-    printf("hi from cretae\n");
+    // printf("hi from cretae\n");
     if (strcmp(cmd, "exit") == 0) 
     {
         print_process_info();
@@ -521,7 +525,7 @@ int submit(char* cmd)
         ptr->wait = 123;
         strcpy(ptr->state,"Running");
         
-        sem_wait(&shared_memory->sem);
+        sem_post(&shared_memory->sem);
         
         enqueue(shared_memory,ptr);
         // sem_post(&shared_memory->sem);
@@ -672,7 +676,7 @@ int main()
     // sem_init(&shared_memory->sem2,1,0);
     sema = sem_open("b", O_CREAT, 0666,0);
     initQueue(shared_memory,(SHM_SIZE - sizeof(Queue)) / sizeof(Process));
-    sem_init(&shared_memory->sem,1,1);
+    sem_init(&shared_memory->sem,1,0);
     int value;
     sem_getvalue(&shared_memory->sem,&value);
     printf("wait  shell main %d\n",value);
@@ -681,7 +685,7 @@ int main()
 
     // shared_memory
 
-    int schedular = fork();
+    schedular = fork();
     if(schedular == 0)
     {
         execl("./simpleSchedular","simpleSchedular",NULL);
