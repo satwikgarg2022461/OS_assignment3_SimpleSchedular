@@ -14,6 +14,14 @@
 #define SHM_NAME "a"
 #define SHM_SIZE 1024  // Adjust this as needed
 
+int termination_check=0;
+
+void my_handler(int signum){
+    if (signum==SIGCHLD){
+        termination_check=1;
+    }
+}
+
 typedef struct Process
 {
     int pid;
@@ -75,24 +83,65 @@ Process dequeue(Queue* queue) {
     return data;
 }
 sem_t* sema;
-int main() {
+int main(int argc, char **argv) {
     // printf("hi\n");
+    // printf("%d\n",atoi(argv[1]));
+    // printf("%d\n",atoi(argv[2]));
+    signal(SIGCHLD,my_handler);
+    int NCPU = atoi(argv[1]);
+    int TSLICE = atoi(argv[2])/1000;
     int shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
     Queue* shared_memory = (Queue*)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     while (1)
     {
         while (shared_memory->size>0) {
-            sem_wait(&shared_memory->sem);
-            printf("shared mem size schedular %d\n",shared_memory->size);
+            int n;
+            if (shared_memory->size<NCPU){
+                n=shared_memory->size;
+            }
+            else{
+                n=NCPU;
+            }
+            for (int i=0;i<n;i++){
+                Process p = dequeue(shared_memory);
+                if (strcmp(p.state,"Ready")){
+                    // int pid=p.pid+1;
+                    printf("%s is running\n",p.name);
+                    printf("scheduler pid %d\n",p.pid);
+                    strcpy(p.state,"Running");
+                    kill(p.pid,SIGCONT);
+                    p.execution_time+=TSLICE;
+                    sleep(TSLICE);
+                    if (termination_check==0){
+                        kill(p.pid,SIGSTOP);
+                        strcpy(p.state,"Ready");
+                        printf("pid before %d\n",p.pid);
+                        enqueue(shared_memory,&p);
+                        printf("pid after %d\n",p.pid);
+                    }
+                    else{
+                        termination_check=0;
+                    }
+                }
+                printf("term %d\n",termination_check);
+            }
+            printf("size of queue scheduler %d\n",shared_memory->size);
+
+
+
+
+
             // sem_wait(&shared_memory->sem);
-            Process p = dequeue(shared_memory);
-            // sem_wait(&shared_memory->sem);
-            printf("Name: %s\n", p.name);
-            printf("State: %s\n", p.state);
-            printf("Wait Time: %d\n", p.wait);
-            printf("Execution Time: %d\n\n", p.execution_time);
-            printf("Process ID: %d\n", p.pid);
-            kill(getpid(),SIGINT);
+            // printf("shared mem size schedular %d\n",shared_memory->size);
+            // // sem_wait(&shared_memory->sem);
+            // Process p = dequeue(shared_memory);
+            // // sem_wait(&shared_memory->sem);
+            // printf("Name: %s\n", p.name);
+            // printf("State: %s\n", p.state);
+            // printf("Wait Time: %d\n", p.wait);
+            // printf("Execution Time: %d\n\n", p.execution_time);
+            // printf("Process ID: %d\n", p.pid);
+            // kill(getpid(),SIGINT);
         // fflush(stdout);
         // sem_wait(&shared_memory->sem);
         }
