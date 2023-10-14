@@ -512,7 +512,10 @@ int submit(char* cmd)
     }
     else if(check == 0)
     {
-        pause();
+        // printf("shell pid %d\n",getpid());
+        // pause();
+        kill(getpid(),SIGSTOP);
+        // printf("hi\n");
         execl(cmd,cmd,NULL);
         exit(0);
     }
@@ -525,14 +528,15 @@ int submit(char* cmd)
         ptr->wait = 123;
         strcpy(ptr->state,"Running");
         
-        sem_post(&shared_memory->sem);
+        // sem_post(&shared_memory->sem);
+        // printf("check pid %d\n",check);
         
         enqueue(shared_memory,ptr);
+
         // sem_post(&shared_memory->sem);
-        sem_wait(&shared_memory->sem);
-        printf("shared memory checd");
+        // sem_wait(&shared_memory->sem);
     
-    return 0;
+    return 1;
 }
 
 
@@ -658,13 +662,17 @@ void shell_loop()
     } while (status);
 }
 
-int main() 
+int main(int argc,char **argv) 
 {
     // signal for ctrl + c
     struct sigaction sig;
     memset(&sig, 0, sizeof(sig));
     sig.sa_handler = my_handler;
     sigaction(SIGINT, &sig, NULL);
+    if(argc>3){
+        perror("More than 3 arguments not allowed\n");
+        exit(1);
+    }
 
     int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
     ftruncate(shm_fd, SHM_SIZE);
@@ -688,7 +696,7 @@ int main()
     schedular = fork();
     if(schedular == 0)
     {
-        execl("./simpleSchedular","simpleSchedular",NULL);
+        execl("./simpleSchedular","simpleSchedular",argv[1],argv[2],NULL);
         exit(0);
     }
     shell_loop();
