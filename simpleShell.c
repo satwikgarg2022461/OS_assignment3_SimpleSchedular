@@ -531,10 +531,10 @@ int submit(char* cmd)
         // sem_post(&shared_memory->sem);
         // printf("check pid %d\n",check);
         
-        enqueue(shared_memory,ptr);
-
-        // sem_post(&shared_memory->sem);
         // sem_wait(&shared_memory->sem);
+        enqueue(shared_memory,ptr);
+        // sem_post(&shared_memory->sem);
+
     
     return 1;
 }
@@ -681,10 +681,10 @@ int main(int argc,char **argv)
 
     // initQueue(q,(SHM_SIZE - sizeof(Queue)) / sizeof(Process));
     shared_memory = (Queue*)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    // sem_init(&shared_memory->sem2,1,0);
     sema = sem_open("b", O_CREAT, 0666,0);
     initQueue(shared_memory,(SHM_SIZE - sizeof(Queue)) / sizeof(Process));
-    sem_init(&shared_memory->sem,1,0);
+    sem_init(&shared_memory->sem,1,1);
+    sem_init(&shared_memory->sem2,1,0);
     int value;
     sem_getvalue(&shared_memory->sem,&value);
     printf("wait  shell main %d\n",value);
