@@ -76,24 +76,25 @@ Process dequeue(Queue* queue) {
 }
 sem_t* sema;
 int main() {
-    printf("hi\n");
+    // printf("hi\n");
     int shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
     Queue* shared_memory = (Queue*)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     while (1)
     {
         while (shared_memory->size>0) {
-        sem_wait(&shared_memory->sem);
-        printf("shared mem size schedular %d\n",shared_memory->size);
-        sem_wait(&shared_memory->sem);
-        Process p = dequeue(shared_memory);
-        sem_wait(&shared_memory->sem);
-        printf("Name: %s\n", p.name);
-        printf("State: %s\n", p.state);
-        printf("Wait Time: %d\n", p.wait);
-        printf("Execution Time: %d\n\n", p.execution_time);
-        printf("Process ID: %d\n", p.pid);
+            sem_wait(&shared_memory->sem);
+            printf("shared mem size schedular %d\n",shared_memory->size);
+            // sem_wait(&shared_memory->sem);
+            Process p = dequeue(shared_memory);
+            // sem_wait(&shared_memory->sem);
+            printf("Name: %s\n", p.name);
+            printf("State: %s\n", p.state);
+            printf("Wait Time: %d\n", p.wait);
+            printf("Execution Time: %d\n\n", p.execution_time);
+            printf("Process ID: %d\n", p.pid);
+            kill(getpid(),SIGINT);
         // fflush(stdout);
-        sem_wait(&shared_memory->sem);
+        // sem_wait(&shared_memory->sem);
         }
         // sem_wait(&shared_memory->sem);
     }
