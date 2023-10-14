@@ -104,11 +104,14 @@ int main(int argc, char **argv) {
             }
             Process pro[n];
             for (int i=0;i<n;i++){
+                // sem_wait(&shared_memory->sem2);
                 Process p = dequeue(shared_memory);
+                // sem_post(&shared_memory->sem);
                 if (strcmp(p.state,"Ready")){
                     // int pid=p.pid+1;
-                    printf("%s is running\n",p.name);
-                    printf("scheduler pid %d\n",p.pid);
+                    printf("\n");
+                    // fflush(stdout);
+                    // printf("scheduler pid %d\n",p.pid);
                     strcpy(p.state,"Running");
                     kill(p.pid,SIGCONT);
                     p.execution_time+=TSLICE;
@@ -118,19 +121,21 @@ int main(int argc, char **argv) {
                 for (int i=0;i<n;i++){
                      int status;
                     int result = waitpid(pro[i].pid, &status, WNOHANG);
-                    printf("kill pid %d\n",pro[i].pid);
-                    printf("kill status %d\n",result);
+                    // printf("kill pid %d\n",pro[i].pid);
+                    // printf("kill status %d\n",result);
                     if (result==0){
                         kill(pro[i].pid,SIGSTOP);
+                        // sem_wait(&shared_memory->sem);
                         enqueue(shared_memory,&pro[i]);
+                        // sem_post(&shared_memory->sem2);
                     }
                     // else{
                     //     kill(pro[i].pid,SIGINT);
                     // }
                 }
-                printf("term %d\n",termination_check);
+                // printf("term %d\n",termination_check);
             }
-            printf("size of queue scheduler %d\n",shared_memory->size);
+            // printf("size of queue scheduler %d\n",shared_memory->size);
 
 
 
