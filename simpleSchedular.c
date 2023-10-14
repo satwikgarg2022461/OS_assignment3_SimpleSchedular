@@ -102,6 +102,7 @@ int main(int argc, char **argv) {
             else{
                 n=NCPU;
             }
+            Process pro[n];
             for (int i=0;i<n;i++){
                 Process p = dequeue(shared_memory);
                 if (strcmp(p.state,"Ready")){
@@ -111,17 +112,21 @@ int main(int argc, char **argv) {
                     strcpy(p.state,"Running");
                     kill(p.pid,SIGCONT);
                     p.execution_time+=TSLICE;
-                    sleep(TSLICE);
-                    if (termination_check==0){
-                        kill(p.pid,SIGSTOP);
-                        strcpy(p.state,"Ready");
-                        printf("pid before %d\n",p.pid);
-                        enqueue(shared_memory,&p);
-                        printf("pid after %d\n",p.pid);
+                    pro[i]=p;
+                }
+                sleep(TSLICE);
+                for (int i=0;i<n;i++){
+                     int status;
+                    int result = waitpid(pro[i].pid, &status, WNOHANG);
+                    printf("kill pid %d\n",pro[i].pid);
+                    printf("kill status %d\n",result);
+                    if (result==0){
+                        kill(pro[i].pid,SIGSTOP);
+                        enqueue(shared_memory,&pro[i]);
                     }
-                    else{
-                        termination_check=0;
-                    }
+                    // else{
+                    //     kill(pro[i].pid,SIGINT);
+                    // }
                 }
                 printf("term %d\n",termination_check);
             }
