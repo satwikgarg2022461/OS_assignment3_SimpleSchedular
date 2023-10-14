@@ -517,7 +517,7 @@ int submit(char* cmd)
         kill(getpid(),SIGSTOP);
         // printf("hi\n");
         execl(cmd,cmd,NULL);
-        exit(0);
+        // exit(0);
     }
     
         Process* ptr = (Process*) malloc(sizeof(Process));
