@@ -34,6 +34,8 @@ typedef struct Process
     int pid;
     char name[100];
     char state[100];
+    struct timeval start_time;
+    struct timeval end_time;
     int wait;
     int execution_time;
 } Process;
@@ -182,10 +184,11 @@ void print_history()
 
 static void my_handler(int signum) {
     if(signum == SIGINT) {
+        kill(schedular,SIGINT);
+        waitpid(schedular,NULL,0);
         print_process_info();
-         close(shm_fd);
-         sem_destroy(&shared_memory->sem);
-         kill(schedular,SIGINT);
+        close(shm_fd);
+        sem_destroy(&shared_memory->sem);
         exit(0);
     }
 }
@@ -524,9 +527,11 @@ int submit(char* cmd)
         strcpy(ptr->name,cmd);
 
         ptr->pid = check;
-        ptr->execution_time = 1;
-        ptr->wait = 123;
-        strcpy(ptr->state,"Running");
+        gettimeofday(&(ptr->start_time),NULL);
+        // ptr->end_time={0};
+        ptr->execution_time = 0;
+        ptr->wait = 0;
+        strcpy(ptr->state,"Ready");
         
         // sem_post(&shared_memory->sem);
         // printf("check pid %d\n",check);
