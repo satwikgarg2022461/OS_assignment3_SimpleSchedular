@@ -13,20 +13,29 @@
 
 #define SHM_NAME "a"
 #define SHM_SIZE 1024  // Adjust this as needed
+#define MAX_PROCESSES 100
 
 int termination_check=0;
+int running=1;
 
 void my_handler(int signum){
     if (signum==SIGCHLD){
         termination_check=1;
     }
+    if (signum==SIGINT){
+        running=0;
+    }
 }
+
+
 
 typedef struct Process
 {
     int pid;
     char name[100];
     char state[100];
+    struct timeval start_time;
+    struct timeval end_time;
     int wait;
     int execution_time;
 } Process;
@@ -83,16 +92,21 @@ Process dequeue(Queue* queue) {
     return data;
 }
 sem_t* sema;
+
+Process process_info[MAX_PROCESSES];
+int no_of_processes=0;
+
 int main(int argc, char **argv) {
     // printf("hi\n");
     // printf("%d\n",atoi(argv[1]));
     // printf("%d\n",atoi(argv[2]));
     signal(SIGCHLD,my_handler);
+    signal(SIGINT,my_handler);
     int NCPU = atoi(argv[1]);
     int TSLICE = atoi(argv[2])/1000;
     int shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
     Queue* shared_memory = (Queue*)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    while (1)
+    while (running)
     {
         while (shared_memory->size>0) {
             int n;
@@ -102,6 +116,7 @@ int main(int argc, char **argv) {
             else{
                 n=NCPU;
             }
+            sleep(TSLICE);
             Process pro[n];
             for (int i=0;i<n;i++){
                 // sem_wait(&shared_memory->sem2);
@@ -109,7 +124,7 @@ int main(int argc, char **argv) {
                 // sem_post(&shared_memory->sem);
                 if (strcmp(p.state,"Ready")==0){
                     // int pid=p.pid+1;
-                    printf("\n");
+                    // printf("\n");
                     // fflush(stdout);
                     // printf("scheduler pid %d\n",p.pid);
                     strcpy(p.state,"Running");
@@ -118,7 +133,6 @@ int main(int argc, char **argv) {
                     pro[i]=p;
                 }
             }
-            sleep(TSLICE);
             for (int i=0;i<n;i++){
                 int status;
                 int result = waitpid(pro[i].pid, &status, WNOHANG);
@@ -131,9 +145,13 @@ int main(int argc, char **argv) {
                     enqueue(shared_memory,&pro[i]);
                     // sem_post(&shared_memory->sem2);
                 }
-                // else{
-                //     kill(pro[i].pid,SIGINT);
-                // }
+                else{
+                    // kill(pro[i].pid,SIGINT);
+                    gettimeofday(&(pro[i].end_time),NULL);
+                    process_info[no_of_processes]=pro[i];
+                    no_of_processes++;
+
+                }
             }
                 // printf("term %d\n",termination_check);
         }
@@ -156,6 +174,19 @@ int main(int argc, char **argv) {
             // kill(getpid(),SIGINT);
         // fflush(stdout);
         // sem_wait(&shared_memory->sem);
+    }
+
+    printf("\nShell terminated, printing info of all submitted child processes...\n");
+    printf("PID\tName\tExecution Time\tWait Time\n");
+    for (int i = 0; i < no_of_processes; i++) 
+    {
+        long long start = process_info[i].start_time.tv_sec*1000000LL + process_info[i].start_time.tv_usec;
+        long long end = process_info[i].end_time.tv_sec*1000000LL + process_info[i].end_time.tv_usec;
+        long long total_time= end-start;
+        int total_time_sec=total_time/1000000;
+        process_info[i].wait=total_time_sec-process_info[i].execution_time;
+        printf("%d\t%s\t\t%d\t%d\n",
+            process_info[i].pid,process_info[i].name,process_info[i].execution_time,process_info[i].wait);
     }
         // sem_wait(&shared_memory->sem);
 
