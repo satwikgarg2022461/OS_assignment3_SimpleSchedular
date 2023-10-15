@@ -119,11 +119,12 @@ int main(int argc, char **argv) {
                 }
                 sleep(TSLICE);
                 for (int i=0;i<n;i++){
-                     int status;
+                    int status;
                     int result = waitpid(pro[i].pid, &status, WNOHANG);
                     // printf("kill pid %d\n",pro[i].pid);
                     // printf("kill status %d\n",result);
                     if (result==0){
+                        strcpy(pro[i].state,"Ready");
                         kill(pro[i].pid,SIGSTOP);
                         // sem_wait(&shared_memory->sem);
                         enqueue(shared_memory,&pro[i]);
