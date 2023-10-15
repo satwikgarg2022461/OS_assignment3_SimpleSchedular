@@ -1,14 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/wait.h>
-#include <sys/time.h>
-#include <fcntl.h> 
-#include <sys/mman.h>
-#include<semaphore.h>
-#include "dummy_main.h"
+
+#include</home/satwik/Btech/sem3/OS/Assignment/OS_assignment3_SimpleSchedular/dummy_main.h>
 
 int fib(int n) {
     if (n == 0) {
@@ -37,7 +28,7 @@ int main(int argc, char *argv[]) {
     // printf("%d\n",getpid());
     // printf("%d\n",kill(getpid(),0));
 
-    printf("%d\n", fib(45));
+    printf("%d\n", fib(40));
 
     return 0;
 }

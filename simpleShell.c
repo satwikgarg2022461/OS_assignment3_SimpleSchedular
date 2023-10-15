@@ -36,8 +36,9 @@ typedef struct Process
     char state[100];
     struct timeval start_time;
     struct timeval end_time;
-    int wait;
+    long long wait;
     int execution_time;
+    // int result;
 } Process;
 
 typedef struct Queue
@@ -669,6 +670,13 @@ void shell_loop()
 
 int main(int argc,char **argv) 
 {
+    if(argc != 3)
+    {
+        perror("Error in cmd of shell");
+        exit(1);
+    }
+
+
     // signal for ctrl + c
     struct sigaction sig;
     memset(&sig, 0, sizeof(sig));
