@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
                 // sem_wait(&shared_memory->sem2);
                 Process p = dequeue(shared_memory);
                 // sem_post(&shared_memory->sem);
-                if (strcmp(p.state,"Ready")){
+                if (strcmp(p.state,"Ready")==0){
                     // int pid=p.pid+1;
                     printf("\n");
                     // fflush(stdout);
@@ -117,25 +117,26 @@ int main(int argc, char **argv) {
                     p.execution_time+=TSLICE;
                     pro[i]=p;
                 }
-                sleep(TSLICE);
-                for (int i=0;i<n;i++){
-                    int status;
-                    int result = waitpid(pro[i].pid, &status, WNOHANG);
-                    // printf("kill pid %d\n",pro[i].pid);
-                    // printf("kill status %d\n",result);
-                    if (result==0){
-                        strcpy(pro[i].state,"Ready");
-                        kill(pro[i].pid,SIGSTOP);
-                        // sem_wait(&shared_memory->sem);
-                        enqueue(shared_memory,&pro[i]);
-                        // sem_post(&shared_memory->sem2);
-                    }
-                    // else{
-                    //     kill(pro[i].pid,SIGINT);
-                    // }
-                }
-                // printf("term %d\n",termination_check);
             }
+            sleep(TSLICE);
+            for (int i=0;i<n;i++){
+                int status;
+                int result = waitpid(pro[i].pid, &status, WNOHANG);
+                // printf("kill pid %d\n",pro[i].pid);
+                // printf("kill status %d\n",result);
+                if (result==0){
+                    strcpy(pro[i].state,"Ready");
+                    kill(pro[i].pid,SIGSTOP);
+                    // sem_wait(&shared_memory->sem);
+                    enqueue(shared_memory,&pro[i]);
+                    // sem_post(&shared_memory->sem2);
+                }
+                // else{
+                //     kill(pro[i].pid,SIGINT);
+                // }
+            }
+                // printf("term %d\n",termination_check);
+        }
             // printf("size of queue scheduler %d\n",shared_memory->size);
 
 
@@ -155,9 +156,8 @@ int main(int argc, char **argv) {
             // kill(getpid(),SIGINT);
         // fflush(stdout);
         // sem_wait(&shared_memory->sem);
-        }
-        // sem_wait(&shared_memory->sem);
     }
+        // sem_wait(&shared_memory->sem);
 
     sem_destroy(&shared_memory->sem);
     
