@@ -38,7 +38,6 @@ typedef struct Process
     struct timeval end_time;
     long long wait;
     int execution_time;
-    // int result;
 } Process;
 
 typedef struct Queue
@@ -74,12 +73,12 @@ void enqueue(Queue* queue, Process* data) {
     else
         queue->rear = (queue->rear + 1) % queue->capacity;
 
-    queue->array[queue->rear] = *data; // Copy the Process data into the queue
+    queue->array[queue->rear] = *data; 
     queue->size++;
 }
 
 Process dequeue(Queue* queue) {
-    Process empty = {0, "", "", 0, 0}; // You might want to define a specific "empty" state.
+    Process empty = {0, "", "", 0, 0}; 
     if (isEmpty(queue))
         return empty;
 
@@ -93,13 +92,14 @@ Process dequeue(Queue* queue) {
     return data;
 }
 
-// -------------------global variable
+// -------------------global variable for shared memory
 int shm_fd;
 Queue* shared_memory;
 Queue* q;
-sem_t* sema;
+sem_t s;
 
 
+//............functions for printing process at exit of shell
 
 typedef struct ChildProcessInfo
 {
@@ -148,6 +148,8 @@ void print_process_info()
     }
 }
 
+
+//..........structure and functions for history command
 typedef struct CmdHistory
 {
     char history[MAX_INPUT_SIZE];
@@ -185,20 +187,22 @@ void print_history()
     }
 }
 
-
+//...............signal handler for handling ctrl+c
 static void my_handler(int signum) {
     if(signum == SIGINT) {
         kill(schedular,SIGINT);
         waitpid(schedular,NULL,0);
         print_process_info();
+        munmap(shared_memory,SHM_SIZE);
+        unlink(SHM_NAME);
         close(shm_fd);
-        sem_destroy(&shared_memory->sem);
+        sem_destroy(&s);
         exit(0);
     }
 }
 
 
-
+//.............shell command prompt
 void print_statement() 
 {
     char path[MAX_DIRECTORY_SIZE];
@@ -224,7 +228,6 @@ char* read_user_input()
     }
     if(input[strlen(input) - 2] == '&')
     {
-        // printf("hi");
         back_ground_check=1;
         input[strlen(input) - 2] = '\0';
     }
@@ -236,10 +239,15 @@ char* read_user_input()
 
 int create_process_run(char *cmd)
 {
-    // printf("hi from cretae\n");
     if (strcmp(cmd, "exit") == 0) 
     {
+        kill(schedular,SIGINT);
+        waitpid(schedular,NULL,0);
         print_process_info();
+        munmap(shared_memory,SHM_SIZE);
+        unlink(SHM_NAME);
+        close(shm_fd);
+        sem_destroy(&s);
         return 0;
     }
 
@@ -538,30 +546,28 @@ int submit(char* cmd)
     }
     else if(check == 0)
     {
-        // printf("shell pid %d\n",getpid());
-        // pause();
         kill(getpid(),SIGSTOP);
-        // printf("hi\n");
         execl(cmd,cmd,NULL);
-        // exit(0);
+        perror("Exec error\n");
+        exit(1);
     }
     
         Process* ptr = (Process*) malloc(sizeof(Process));
+        if (ptr==NULL){
+            perror("Malloc error\n");
+            exit(1);
+        }
         strcpy(ptr->name,cmd);
 
         ptr->pid = check;
         gettimeofday(&(ptr->start_time),NULL);
-        // ptr->end_time={0};
         ptr->execution_time = 0;
         ptr->wait = 0;
         strcpy(ptr->state,"Ready");
-        
-        // sem_post(&shared_memory->sem);
-        // printf("check pid %d\n",check);
-        
-        // sem_wait(&shared_memory->sem);
+        sem_wait(&s);
         enqueue(shared_memory,ptr);
-        // sem_post(&shared_memory->sem);
+        sem_post(&s);
+        free(ptr);
 
     
     return 1;
@@ -665,12 +671,7 @@ void shell_loop()
 
             if(flag==0)
             {
-                // status=read_sh(args[1]);
-
                 status = submit(args[1]);
-
-                //  add your add here
-
 
             }
             else
@@ -704,36 +705,33 @@ int main(int argc,char **argv)
     memset(&sig, 0, sizeof(sig));
     sig.sa_handler = my_handler;
     sigaction(SIGINT, &sig, NULL);
-    if(argc>3){
-        perror("More than 3 arguments not allowed\n");
-        exit(1);
-    }
-
-    int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-    ftruncate(shm_fd, SHM_SIZE);
-    // q=(Queue*)malloc(sizeof(Queue));
-
-
-    // initQueue(q,(SHM_SIZE - sizeof(Queue)) / sizeof(Process));
-    shared_memory = (Queue*)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-    sema = sem_open("b", O_CREAT, 0666,0);
-    initQueue(shared_memory,(SHM_SIZE - sizeof(Queue)) / sizeof(Process));
-    sem_init(&shared_memory->sem,1,1);
-    sem_init(&shared_memory->sem2,1,0);
-    int value;
-    sem_getvalue(&shared_memory->sem,&value);
-    printf("wait  shell main %d\n",value);
-    
-    
 
     // shared_memory
-
+    int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+    if (shm_fd==-1){
+        perror("shm_open error\n");
+        exit(1);
+    }
+    ftruncate(shm_fd, SHM_SIZE);
+    shared_memory = (Queue*)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (shared_memory==MAP_FAILED){
+        perror("MMap error\n");
+        exit(1);
+    }
+    initQueue(shared_memory,(SHM_SIZE - sizeof(Queue)) / sizeof(Process));
+    sem_init(&s,1,1);
+    //..........starting the daemon scheduler
     schedular = fork();
-    if(schedular == 0)
+    if (schedular<0){
+        perror("Fork error\n");
+        exit(1);
+    }
+    else if(schedular == 0)
     {
         execl("./simpleSchedular","simpleSchedular",argv[1],argv[2],NULL);
-        exit(0);
+        exit(1);
     }
+    //...................Main shell loop
     shell_loop();
 
 
