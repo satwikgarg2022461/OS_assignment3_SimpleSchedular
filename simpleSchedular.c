@@ -14,21 +14,17 @@
 #define SHM_NAME "a"
 #define l "/my_shared_memory"
 #define SIZE 100
-#define SHM_SIZE 1024  // Adjust this as needed
+#define SHM_SIZE 1024  
 #define MAX_PROCESSES 100
 
-int termination_check=0;
-int running=1;
+int running =1;
 
-void my_handler(int signum){
-    if (signum==SIGCHLD){
-        termination_check=1;
-    }
-    if (signum==SIGINT){
+//..............Signal handler for scheduler
+void sig_handler(int sig){
+    if (sig==SIGINT){
         running=0;
     }
 }
-
 
 
 typedef struct Process
@@ -42,11 +38,13 @@ typedef struct Process
     int execution_time;
 } Process;
 
+
+//............Structure and functions of Queue
 typedef struct Queue
 {
     int front, rear, size;
     unsigned capacity;
-    Process array[0]; // Flexible array member
+    Process array[0]; 
     sem_t sem,sem2;
 } Queue;
 
@@ -75,12 +73,12 @@ void enqueue(Queue* queue, Process* data) {
     else
         queue->rear = (queue->rear + 1) % queue->capacity;
 
-    queue->array[queue->rear] = *data; // Copy the Process data into the queue
+    queue->array[queue->rear] = *data; 
     queue->size++;
 }
 
 Process dequeue(Queue* queue) {
-    Process empty = {0, "", "", 0, 0}; // You might want to define a specific "empty" state.
+    Process empty = {0, "", "", 0, 0}; 
     if (isEmpty(queue))
         return empty;
 
@@ -94,16 +92,11 @@ Process dequeue(Queue* queue) {
     return data;
 }
 
+sem_t s;
 
-
-sem_t* sema;
-
-Process process_info[MAX_PROCESSES];
+//.........keeping track of completed processes
 Process history[MAX_PROCESSES];
-int no_of_processes=0;
 int no_of_history=0;
-
-
 
 bool check_array(Process p)
 {
@@ -122,31 +115,36 @@ bool check_array(Process p)
 }
 
 int main(int argc, char **argv) {
-    signal(SIGCHLD,my_handler);
-    signal(SIGINT,my_handler);
+    signal(SIGINT,sig_handler);
+    sem_init(&s,1,1);
+
+    //...........Shared memory with dummy_main.h
     int shm_fd1 = shm_open(l, O_RDWR | O_CREAT, 0666);
-    ftruncate(shm_fd1, SIZE);
     if (shm_fd1 == -1) {
-        perror("shm_open");
+        perror("shm_open error\n");
         return 1;
     }
-
-   
+    ftruncate(shm_fd1, SIZE);
     int* shared_memory1 = (int*)mmap(NULL, SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd1, 0);
-    *shared_memory1 = 100;
     if (shared_memory1 == MAP_FAILED) {
-        perror("mmap");
+        perror("mmap error\n");
         return 1;
     }
-
-    
-    
-
-
+    *shared_memory1 = 100;
     int NCPU = atoi(argv[1]);
     int TSLICE = atoi(argv[2])/1000;
+    //............Shared memory with simpleshell
     int shm_fd = shm_open(SHM_NAME, O_RDWR, 0666);
+    if (shm_fd == -1) {
+        perror("shm_open error\n");
+        return 1;
+    }
     Queue* shared_memory = (Queue*)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (shared_memory == MAP_FAILED) {
+        perror("mmap error\n");
+        return 1;
+    }
+    //...............Main scheduler algorithm
     while (running)
     {
         while (shared_memory->size>0) {
@@ -160,7 +158,9 @@ int main(int argc, char **argv) {
             
             Process pro[n];
             for (int i=0;i<n;i++){
+                sem_wait(&s);
                 Process p = dequeue(shared_memory);
+                sem_post(&s);
                 if(check_array(p))
                 {
                     history[no_of_history] = p;
@@ -185,47 +185,29 @@ int main(int argc, char **argv) {
             sleep(TSLICE);
             int result = *shared_memory1;
             for (int i=0;i<n;i++){
-               
-                
-                // printf("kill status %d\n",result);
-                if (result!=0){
-                    
+                if (result!=0){                    
                     strcpy(pro[i].state,"Ready");
-                    kill(pro[i].pid,SIGSTOP);
-                    
+                    kill(pro[i].pid,SIGSTOP);   
+                    sem_wait(&s);                 
                     enqueue(shared_memory,&pro[i]);
-                    // printf("shared memory size enquueue%d\n",shared_memory->size);
-                    
-                    
+                    sem_post(&s);                 
+                    printf("%d\n",pro[i].pid);
                 }
                 else{
                     *shared_memory1=1;
-                    
-
                     for(int j=0;j<no_of_history;j++)
                     {
                         if(history[j].pid == pro[i].pid)
                         {
-                            
                             gettimeofday(&(history[j].end_time),NULL); 
                         }
                     }
-
-                    
-
                 }
             }
-                
-        }
-           
-
-
-
-
-            
+        }      
     }
 
-    printf("\nShell terminated, printing info of all submitted child processes...\n");
+    printf("\nScheduler terminated, printing info of all submitted child processes...\n");
     printf("PID\tName\tExecution Time\tWait Time(microsecond)\n");
     
 
@@ -241,14 +223,14 @@ int main(int argc, char **argv) {
         history[i].pid,history[i].name,history[i].execution_time,history[i].wait);
         
     }
-
-        
-    sem_destroy(&shared_memory->sem);
     
     munmap(shared_memory1, SIZE);
     unlink(l);
-
+    close(shm_fd1);
+    munmap(shared_memory,SHM_SIZE);
+    unlink(SHM_NAME);
     close(shm_fd);
+    sem_destroy(&s);
 
     return 0;
 }
