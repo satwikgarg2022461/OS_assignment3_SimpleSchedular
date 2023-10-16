@@ -3,7 +3,7 @@ all:
 	gcc -o simpleSchedular simpleSchedular.c
 	gcc -o fib fib.c
 	gcc -o hello hello.c
-	./simpleShell 4 2000
+	./simpleShell 1 2000
 
 clean:
 	@rm -f simpleShell
