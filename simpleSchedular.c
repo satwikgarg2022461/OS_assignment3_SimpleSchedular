@@ -191,7 +191,7 @@ int main(int argc, char **argv) {
                     sem_wait(&s);                 
                     enqueue(shared_memory,&pro[i]);
                     sem_post(&s);                 
-                    printf("%d\n",pro[i].pid);
+                    // printf("%d\n",pro[i].pid);
                 }
                 else{
                     *shared_memory1=1;
