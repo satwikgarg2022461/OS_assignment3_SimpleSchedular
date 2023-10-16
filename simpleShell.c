@@ -104,6 +104,7 @@ sem_t* sema;
 typedef struct ChildProcessInfo
 {
     int pid;
+    char name[MAX_INPUT_SIZE];
     struct timeval start_time;
     struct timeval end_time;
 }processinfo;
@@ -112,10 +113,11 @@ processinfo processes[MAX_PROCESSES];
 int no_processes=0;
 
 
-void record_process_info(pid_t pid, struct timeval start_time, struct timeval end_time) 
+void record_process_info(pid_t pid, char name[], struct timeval start_time, struct timeval end_time) 
 {
     if (no_processes < MAX_PROCESSES) {
         processes[no_processes].pid = pid;
+        strcpy(processes[no_processes].name,name);
         processes[no_processes].start_time = start_time;
         processes[no_processes].end_time = end_time;
         no_processes++;
@@ -127,7 +129,7 @@ void record_process_info(pid_t pid, struct timeval start_time, struct timeval en
 void print_process_info()
 {
     printf("\nShell terminated, printing info of all child processes...\n");
-    printf("PID\tStart Time\t\tEnd Time\t\tExecution Time\n");
+    printf("PID\tName\t\tStart Time\t\tEnd Time\t\tExecution Time\n");
     for (int i = 0; i < no_processes; i++) 
     {
         long int execution_time_sec = processes[i].end_time.tv_sec - processes[i].start_time.tv_sec;
@@ -137,8 +139,9 @@ void print_process_info()
             execution_time_sec--;
             execution_time_usec += 1000000;
         }
-        printf("%d\t%ld.%06ld\t%ld.%06ld\t%ld.%06ld\n",
+        printf("%d\t%s\t\t%ld.%06ld\t%ld.%06ld\t%ld.%06ld\n",
             processes[i].pid,
+            processes[i].name,
             processes[i].start_time.tv_sec, processes[i].start_time.tv_usec,
             processes[i].end_time.tv_sec, processes[i].end_time.tv_usec,
             execution_time_sec, execution_time_usec);
@@ -327,6 +330,25 @@ int create_process_run(char *cmd)
             {
                 // Parent process
                 // close(pipe_)
+                char* args[MAX_INPUT_SIZE];
+                int num_args = 0;
+
+                char* token = strtok(commands[i], " ");
+
+                while (token != NULL) 
+                {
+                    args[num_args] = token;
+                    num_args++;
+                    token = strtok(NULL, " ");
+                }
+
+                if(num_args == MAX_INPUT_SIZE)
+                {
+                    perror("Error");
+                    exit(1);
+                }
+
+                args[num_args] = NULL;
                 close(pipe_fd[1]); // Close write end of the pipe
 
                 if (i != 0)
@@ -351,7 +373,7 @@ int create_process_run(char *cmd)
                     struct timeval end_time;
                     gettimeofday(&end_time, NULL);
 
-                    record_process_info(pid, start_time, end_time);
+                    record_process_info(pid,args[0], start_time, end_time);
                 }
 
                 else
@@ -359,7 +381,7 @@ int create_process_run(char *cmd)
                     struct timeval end_time;
                     gettimeofday(&end_time, NULL);
 
-                    record_process_info(pid, start_time, end_time);
+                    record_process_info(pid,args[0], start_time, end_time);
 
                     struct timeval start_time;
                     gettimeofday(&start_time, NULL);
@@ -431,7 +453,7 @@ int create_process_run(char *cmd)
 
                 struct timeval end_time;
                 gettimeofday(&end_time, NULL);
-                record_process_info(pid,start_time,end_time);
+                record_process_info(pid,args[0],start_time,end_time);
 
             }
             

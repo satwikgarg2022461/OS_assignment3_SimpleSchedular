@@ -122,9 +122,6 @@ bool check_array(Process p)
 }
 
 int main(int argc, char **argv) {
-    // printf("hi\n");
-    // printf("%d\n",atoi(argv[1]));
-    // printf("%d\n",atoi(argv[2]));
     signal(SIGCHLD,my_handler);
     signal(SIGINT,my_handler);
     int shm_fd1 = shm_open(l, O_RDWR | O_CREAT, 0666);
@@ -134,20 +131,15 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // Map the shared memory segment to the address space of the process
+   
     int* shared_memory1 = (int*)mmap(NULL, SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd1, 0);
+    *shared_memory1 = 100;
     if (shared_memory1 == MAP_FAILED) {
         perror("mmap");
         return 1;
     }
 
-    // Read the integer from shared memory
-    // printf("Value in shared memory1: %d\n", *shared_memory1);
-
-    // Unmap the shared memory segment
     
-
-    // Close the shared memory object
     
 
 
@@ -158,7 +150,6 @@ int main(int argc, char **argv) {
     while (running)
     {
         while (shared_memory->size>0) {
-            // printf("shared size %d\n",shared_memory->size);
             int n;
             if (shared_memory->size<NCPU){
                 n=shared_memory->size;
@@ -166,24 +157,17 @@ int main(int argc, char **argv) {
             else{
                 n=NCPU;
             }
-            sleep(TSLICE);
+            
             Process pro[n];
             for (int i=0;i<n;i++){
-                // sem_wait(&shared_memory->sem2);
                 Process p = dequeue(shared_memory);
                 if(check_array(p))
                 {
                     history[no_of_history] = p;
                     no_of_history++;
                 }
-                // sem_post(&shared_memory->sem);
                 if (strcmp(p.state,"Ready")==0){
-                    // int pid=p.pid+1;
-                    // printf("\n");
-                    // fflush(stdout);
-                    // printf("Name: %s\n", p.name);
-                    // printf("scheduler pid %d\n",p.pid);
-                    // strcpy(p.state,"Running");
+                    
                     kill(p.pid,SIGCONT);
                     p.execution_time+=TSLICE;
                     for(int j=0;j<no_of_history;j++)
@@ -191,87 +175,59 @@ int main(int argc, char **argv) {
                         if(history[j].pid == p.pid)
                         {
                             history[j].execution_time +=TSLICE; 
-                            // printf("Execution Time: %d\n\n", history[j].execution_time);
                         }
                     }
                     pro[i]=p;
                 }
 
             }
+            
+            sleep(TSLICE);
+            int result = *shared_memory1;
             for (int i=0;i<n;i++){
-                // int status;
-                // int result = waitpid(pro[i].pid, &status, WNOHANG);
-                // // int result =
-                // // char command[256];
-                // printf("kill pid %d\n",pro[i].pid);
-                // // sprintf(command, "ps -p %d", pro[i].pid);
+               
+                
                 // printf("kill status %d\n",result);
-                int result = *shared_memory1;
-                if (result==0){
-                    // printf("hi\n");
+                if (result!=0){
+                    
                     strcpy(pro[i].state,"Ready");
                     kill(pro[i].pid,SIGSTOP);
-                    // sem_wait(&shared_memory->sem);
+                    
                     enqueue(shared_memory,&pro[i]);
                     // printf("shared memory size enquueue%d\n",shared_memory->size);
-                    *shared_memory1=1;
                     
-                    // sem_post(&shared_memory->sem2);
+                    
                 }
                 else{
-                    // kill(pro[i].pid,SIGINT);
-                    // gettimeofday(&(pro[i].end_time),NULL);
+                    *shared_memory1=1;
                     
-                    // process_info[no_of_processes]=pro[i];
 
                     for(int j=0;j<no_of_history;j++)
                     {
                         if(history[j].pid == pro[i].pid)
                         {
-                            // history[j].execution_time +=TSLICE;
+                            
                             gettimeofday(&(history[j].end_time),NULL); 
                         }
                     }
 
-                    // no_of_processes++;
+                    
 
                 }
             }
-                // printf("term %d\n",termination_check);
+                
         }
-            // printf("size of queue scheduler %d\n",shared_memory->size);
+           
 
 
 
 
-
-            // sem_wait(&shared_memory->sem);
-            // printf("shared mem size schedular %d\n",shared_memory->size);
-            // // sem_wait(&shared_memory->sem);
-            // Process p = dequeue(shared_memory);
-            // // sem_wait(&shared_memory->sem);
-            // printf("Name: %s\n", p.name);
-            // printf("State: %s\n", p.state);
-            // printf("Wait Time: %d\n", p.wait);
-            // printf("Execution Time: %d\n\n", p.execution_time);
-            // printf("Process ID: %d\n", p.pid);
-            // kill(getpid(),SIGINT);
-        // fflush(stdout);
-        // sem_wait(&shared_memory->sem);
+            
     }
 
     printf("\nShell terminated, printing info of all submitted child processes...\n");
     printf("PID\tName\tExecution Time\tWait Time(microsecond)\n");
-    // for (int i = 0; i < no_of_processes; i++) 
-    // {
-    //     long long start = process_info[i].start_time.tv_sec*1000000LL + process_info[i].start_time.tv_usec;
-    //     long long end = process_info[i].end_time.tv_sec*1000000LL + process_info[i].end_time.tv_usec;
-    //     long long total_time= end-start;
-    //     int total_time_sec=total_time/1000000;
-    //     process_info[i].wait=total_time_sec-process_info[i].execution_time;
-    //     printf("%d\t%s\t\t%d\t%d\n",
-    //         process_info[i].pid,process_info[i].name,process_info[i].execution_time,process_info[i].wait);
-    // }
+    
 
     for(int i=0;i<no_of_history;i++)
     {
@@ -283,15 +239,10 @@ int main(int argc, char **argv) {
         history[i].wait=total_time_sec-(history[i].execution_time)*1000000;
         printf("%d\t%s\t\t%d\t%lld\n",
         history[i].pid,history[i].name,history[i].execution_time,history[i].wait);
-        // printf("start time %lld\n",start);
-        // printf("end time %lld\n",end);
-        // printf("total time%lld \n",total_time);
-        // printf("total time sec %d \n",total_time_sec);
-        // printf("wait time %lld",history[i].wait," mircosecond");
+        
     }
 
-        // sem_wait(&shared_memory->sem);
-
+        
     sem_destroy(&shared_memory->sem);
     
     munmap(shared_memory1, SIZE);

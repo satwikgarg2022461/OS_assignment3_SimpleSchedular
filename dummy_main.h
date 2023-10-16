@@ -33,6 +33,7 @@ const char* l = "/my_shared_memory";
 
     // Write an integer to the shared memory
     *shared_memory1 = 42;
+    // printf("shared memory 2 dummy main %d\n",*shared_memory1);
 
     
 int check = fork();
@@ -56,6 +57,7 @@ else if (check>0)
     // Unmap the shared memory segment
 
     *shared_memory1 = WEXITSTATUS(status);
+    // printf("shared memory 2 dummy main %d\n",*shared_memory1);
     // munmap(shared_memory1, SIZE);
 
     // Close the shared memory object
